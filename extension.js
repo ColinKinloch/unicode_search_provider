@@ -3,6 +3,7 @@ const Main = imports.ui.main;
 const Search = imports.ui.search;
 const Gio = imports.gi.Gio;
 const Lang = imports.lang;
+const St = imports.gi.St;
 
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 const Gum = imports.gi.Gucharmap;
@@ -85,7 +86,7 @@ const UnicodeSearchProvider = new Lang.Class({
         callback(metas);
     },
     activateResult: function(result) {
-        //TODO: Copy to buffer
+        St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, result);
     },
     launchSearch: function(terms) {
         
