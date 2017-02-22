@@ -94,21 +94,20 @@ const UnicodeSearchProvider = new Lang.Class({
 
 let unicodeSearchProvider = null;
 
-function init() {
-    log("Yolo");
-}
+function init() {}
 
 function enable() {
-    log("Yello");
     if (!unicodeSearchProvider) {
         unicodeSearchProvider = new UnicodeSearchProvider();
-        Main.overview.viewSelector._searchResults._registerProvider(unicodeSearchProvider);
+        Main.overview.viewSelector
+            ._searchResults._registerProvider(unicodeSearchProvider);
     }
 }
 
 function disable() {
     if (unicodeSearchProvider) {
-        Main.overview.viewSelector._searchResults._unregisterProvider(unicodeSearchProvider);
+        Main.overview.viewSelector
+            ._searchResults._unregisterProvider(unicodeSearchProvider);
         unicodeSearchProvider = null;
     }
 }
