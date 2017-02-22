@@ -1,14 +1,22 @@
 
+
 const Main = imports.ui.main;
-const Search = imports.ui.search;
+//const Search = imports.ui.search;
 const Gio = imports.gi.Gio;
 const Lang = imports.lang;
 const St = imports.gi.St;
+//const GLib = imports.gi.GLib;
 
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 const Gum = imports.gi.Gucharmap;
 
+imports.searchPath.unshift(Me.path);
+
+const Promise = imports.helpers.promise.Promise;
+
 const MAX_RESULTS = 10;
+
+const iterToArray = i => { let a = []; for (let v of i) a.push(v); return a; }
 
 const UnicodeSearchProvider = new Lang.Class({
     Name: "UnicodeSearchProvider",
@@ -25,42 +33,41 @@ const UnicodeSearchProvider = new Lang.Class({
         }
         
         // List 'em
-        //TODO: This is far too slow for startup 
+        //TODO: This is far too slow for startup, async?
         this.charmap = new Map();
-        const codepoints = new Gum.ScriptCodepointList();
-        //const codepoints = new Gum.BlockCodepointList();
-        const scripts = Gum.unicode_list_scripts();
-        for (let script of scripts) { codepoints.append_script(script); }
-        for (let i = 0; i < codepoints.get_last_index(); i++) {
-            try {
-                let codepoint = codepoints.get_char(i);
-                if (Gum.unichar_isdefined(codepoint)) {
-                    this.charmap.set(codepoint, Gum.get_unicode_name(codepoint));
+        new Promise((res, rej) => {
+            const codepoints = new Gum.ScriptCodepointList();
+            //const codepoints = new Gum.BlockCodepointList();
+            const scripts = Gum.unicode_list_scripts();
+            for (let script of scripts) { codepoints.append_script(script); }
+            for (let i = 0; i < codepoints.get_last_index(); i++) {
+                try {
+                    let codepoint = codepoints.get_char(i);
+                    if (Gum.unichar_isdefined(codepoint)) {
+                        this.charmap.set(codepoint, Gum.get_unicode_name(codepoint));
+                    }
+                } catch (error) {
                 }
-            } catch (error) {
             }
-        }
+        })
         
         this.resultsMap = new Map();
     },
     _doSearch: function(queryString, callback) {
-        this.resultsMap.clear();
-        //let queryString = searchString.split(' ');
-        let regstr = '(?=.*' + queryString.join(')(?=.*') +')';
-        let query = new RegExp(regstr, 'i');
-        
-        for (let [char, name] of this.charmap.entries()) {
-            if (name.match(query)) { this.resultsMap.set(char, name) }
-        }
-        callback(this.resultsMap.keys())
+        new Promise((res, rej) => {
+            this.resultsMap.clear();
+            //let queryString = searchString.split(' ');
+            let regstr = '(?=.*' + queryString.join(')(?=.*') +')';
+            let query = new RegExp(regstr, 'i');
+            
+            for (let [char, name] of this.charmap.entries()) {
+                if (name.match(query)) { this.resultsMap.set(char, name) }
+            }
+            res(iterToArray(this.resultsMap.keys()));
+        }).then(callback);
     },
     filterResults: function(results, maximum) {
-        log(results)
-        let r = [];
-        for (let result of results) {
-            r.push(result);
-        }
-        return r.slice(0, MAX_RESULTS);
+        return results.slice(0, MAX_RESULTS);
     },
     getInitialResultSet: function(terms, callback, cancellable) {
         this._doSearch(terms, callback);
@@ -73,7 +80,9 @@ const UnicodeSearchProvider = new Lang.Class({
         return {
             id: resultId,
             name: resultId,
-            createIcon: function() {},
+            createIcon: function() {
+                //TODO: Character as icon?
+            },
             description: this.resultsMap.get(resultId),
         }
     },
