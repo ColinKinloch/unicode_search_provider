@@ -1,0 +1,6 @@
+{
+    "shell-version": ["3.22.3"],
+    "uuid": "unicode_search_provider@colin.kinlo.ch",
+    "description": "Gnome search provider for unicode characters.",
+    "name": "Unicode Search Provider"
+}
