@@ -57,11 +57,10 @@ const UnicodeSearchProvider = new Lang.Class({
     filterResults: function(results, maximum) {
         log(results)
         let r = [];
-        for (let i = 0; i < MAX_RESULTS; i++) {
-            r.push(results.next());
+        for (let result of results) {
+            r.push(result);
         }
-        return r;
-        //return results.slice(0, MAX_RESULTS);
+        return r.slice(0, MAX_RESULTS);
     },
     getInitialResultSet: function(terms, callback, cancellable) {
         this._doSearch(terms, callback);
