@@ -89,7 +89,8 @@ const UnicodeSearchProvider = new Lang.Class({
             id: resultId,
             name: resultId,
             createIcon: function() {
-                //TODO: Character as icon?
+                // TODO: Character as icon?
+                // SVG of glyphs?
             },
             description: this.resultsMap.get(resultId),
         }
@@ -105,7 +106,7 @@ const UnicodeSearchProvider = new Lang.Class({
         St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, result);
     },
     launchSearch: function(terms) {
-        
+        Util.trySpawnCommandLine('gucharmap "' + terms + '"');
     },
 });
 
