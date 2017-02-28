@@ -6,17 +6,25 @@ const Gio = imports.gi.Gio;
 const Lang = imports.lang;
 const St = imports.gi.St;
 //const GLib = imports.gi.GLib;
+const GLib = imports.gi.GLib;
+const Util = imports.misc.util;
 
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 const Gum = imports.gi.Gucharmap;
 
-imports.searchPath.unshift(Me.path);
-
-const Promise = imports.helpers.promise.Promise;
-
 const MAX_RESULTS = 10;
 
 const iterToArray = i => { let a = []; for (let v of i) a.push(v); return a; }
+
+// TODO: Does this actually achieve anything?
+// Taken from Gjs 1.47.4 Promise implementation (Lie)
+// Seems to differ blocking until after extensions are loaded
+const async = (func, priority=GLib.PRIORITY_DEFAULT_IDLE) => {
+    GLib.idle_add(priority, () => {
+        func();
+        return GLib.SOURCE_REMOVE;
+    });
+}
 
 const UnicodeSearchProvider = new Lang.Class({
     Name: "UnicodeSearchProvider",
@@ -33,9 +41,9 @@ const UnicodeSearchProvider = new Lang.Class({
         }
         
         // List 'em
-        //TODO: This is far too slow for startup, async?
+        // TODO: Is there a more efficient way to map codepoints?
         this.charmap = new Map();
-        new Promise((res, rej) => {
+        async(() => {
             const codepoints = new Gum.ScriptCodepointList();
             //const codepoints = new Gum.BlockCodepointList();
             const scripts = Gum.unicode_list_scripts();
@@ -49,12 +57,12 @@ const UnicodeSearchProvider = new Lang.Class({
                 } catch (error) {
                 }
             }
-        })
+        });
         
         this.resultsMap = new Map();
     },
     _doSearch: function(queryString, callback) {
-        new Promise((res, rej) => {
+        async(() => {
             this.resultsMap.clear();
             //let queryString = searchString.split(' ');
             let regstr = '(?=.*' + queryString.join(')(?=.*') +')';
@@ -63,8 +71,8 @@ const UnicodeSearchProvider = new Lang.Class({
             for (let [char, name] of this.charmap.entries()) {
                 if (name.match(query)) { this.resultsMap.set(char, name) }
             }
-            res(iterToArray(this.resultsMap.keys()));
-        }).then(callback);
+            callback(iterToArray(this.resultsMap.keys()));
+        });
     },
     filterResults: function(results, maximum) {
         return results.slice(0, MAX_RESULTS);
