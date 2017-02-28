@@ -2,5 +2,7 @@
     "shell-version": ["3.22.3"],
     "uuid": "unicode_search_provider@colin.kinlo.ch",
     "description": "Gnome search provider for unicode characters.\nDepends on gucharmap and libgucharmap",
-    "name": "Unicode Search Provider"
+    "url": "https://github.com/ColinKinloch/unicode_search_provider",
+    "name": "Unicode Search Provider",
+    "version": 2.1
 }
