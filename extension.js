@@ -5,26 +5,12 @@ const Main = imports.ui.main;
 const Gio = imports.gi.Gio;
 const Lang = imports.lang;
 const St = imports.gi.St;
-//const GLib = imports.gi.GLib;
 const GLib = imports.gi.GLib;
 const Util = imports.misc.util;
 
-const Me = imports.misc.extensionUtils.getCurrentExtension();
-const Gum = imports.gi.Gucharmap;
+const Self = imports.misc.extensionUtils.getCurrentExtension();
 
 const MAX_RESULTS = 10;
-
-const iterToArray = i => { let a = []; for (let v of i) a.push(v); return a; }
-
-// TODO: Does this actually achieve anything?
-// Taken from Gjs 1.47.4 Promise implementation (Lie)
-// Seems to differ blocking until after extensions are loaded
-const async = (func, priority=GLib.PRIORITY_DEFAULT_IDLE) => {
-    GLib.idle_add(priority, () => {
-        func();
-        return GLib.SOURCE_REMOVE;
-    });
-}
 
 const UnicodeSearchProvider = new Lang.Class({
     Name: "UnicodeSearchProvider",
@@ -37,48 +23,59 @@ const UnicodeSearchProvider = new Lang.Class({
             return 'Unicode Search Provider'
         }
         this.appInfo.get_icon = function() {
-            return Gio.icon_new_for_string(Me.path + '/uni.svg');
+            return Gio.icon_new_for_string(Self.path + '/uni.svg');
         }
-        
-        // List 'em
-        // TODO: Is there a more efficient way to map codepoints?
-        this.charmap = new Map();
-        async(() => {
-            const codepoints = new Gum.ScriptCodepointList();
-            //const codepoints = new Gum.BlockCodepointList();
-            const scripts = Gum.unicode_list_scripts();
-            for (let script of scripts) { codepoints.append_script(script); }
-            for (let i = 0; i < codepoints.get_last_index(); i++) {
-                try {
-                    let codepoint = codepoints.get_char(i);
-                    if (Gum.unichar_isdefined(codepoint)) {
-                        this.charmap.set(codepoint, Gum.get_unicode_name(codepoint));
-                    }
-                } catch (error) {
-                }
-            }
-        });
         
         this.resultsMap = new Map();
     },
-    _doSearch: function(queryString, callback) {
-        async(() => {
-            this.resultsMap.clear();
-            //let queryString = searchString.split(' ');
-            let regstr = '(?=.*' + queryString.join(')(?=.*') +')';
-            let query = new RegExp(regstr, 'i');
-            
-            for (let [char, name] of this.charmap.entries()) {
-                if (name.match(query)) { this.resultsMap.set(char, name) }
-            }
-            callback(iterToArray(this.resultsMap.keys()));
+    _doSearch: function(queryString, callback, cancellable) {
+        this.resultsMap.clear();
+        
+        this.cancellable = new Gio.Cancellable();
+        
+        let file = Self.path + '/NamesList.txt';
+        // Get all lines starting with codepoints
+        //let grep = ['/bin/grep', file, '-e', "$'^[0-9,A-F]*\t'"]
+        //let grep = ['/bin/grep', file, '-e', '^[0-9,A-F]\\{1,6\\}\t']
+        //let grep = ['/bin/grep', file, '-E', '^[0-9,A-F]\*\t']
+        let grep = ['/bin/cat', file]
+        //grep = grep.concat(['|', '/bin/grep', '-e', '^[0-9,A-F]\\{1,6\\}\t'])
+        for (let q of queryString) {
+            grep = grep.concat(['|', '/bin/grep', '-ie', q])
+        }
+        const [res, pid, in_fd, out_fd, err_fd] = GLib.spawn_async_with_pipes(null, ['/bin/sh', '-c', grep.join(' ')], null, 0, null);
+        const out_reader = new Gio.DataInputStream({
+          base_stream: new Gio.UnixInputStream({fd: out_fd})
         });
+        // TODO: Cancellable
+        const yolo = (source_object, res) => {
+            const [out, length] = out_reader.read_line_finish_utf8(res);
+            if (out !== null) {
+                let d = out.split('\t');
+                let cp = parseInt(d[0], 16);
+                if (!isNaN(cp)) {
+                    let char = String.fromCodePoint(cp);
+                    let desc = d[1].trim();
+                    print(d[0bus], "\t: ", char, "\t: ", desc);
+                    this.resultsMap.set(char, desc);
+                    callback(Array.from(this.resultsMap.keys()))
+                }
+                if (this.resultsMap.size > MAX_RESULTS) {
+                    cancellable.cancel();
+                    GLib.spawn_close_pid(pid);
+                }
+                out_reader.read_line_async(GLib.PRIORITY_LOW, cancellable, yolo);
+            } else {
+                callback(Array.from(this.resultsMap.keys()));
+            }
+        };
+        out_reader.read_line_async(GLib.PRIORITY_LOW, cancellable, yolo);
     },
     filterResults: function(results, maximum) {
         return results.slice(0, MAX_RESULTS);
     },
     getInitialResultSet: function(terms, callback, cancellable) {
-        this._doSearch(terms, callback);
+        this._doSearch(terms, callback, cancellable);
         return [];
     },
     getSubsearchResultSet: function(previousResults, terms, callback, cancellable) {
